@@ -1,0 +1,438 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Diagnostics;
+
+namespace MineyGame
+{
+
+
+    public class Tile : Button
+    {
+        public static bool addFlag = false;
+        public bool isFlagged = false;
+        public bool isOpen = false;
+        public int tileXCoord;
+        public int tileYCoord;
+        public static Color defaultOpenColor = Color.DarkGray;
+        public TileState State { get; set; }
+
+        public enum TileState
+        {
+            Zero = 0,
+            One = 1,
+            Two = 2,
+            Three = 3,
+            Four = 4,
+            Five = 5,
+            Six = 6,
+            Seven = 7,
+            Eight = 8,
+            Mine,
+
+        }
+
+        public void ShowState()
+        {
+            if (!isOpen) //&& State != TileState.Mine
+            {
+                Text = "";
+                BackColor = Color.LightGray;
+                return;
+            }
+            switch (State)
+            {
+                case TileState.Zero:
+                    Text = "";
+                    BackColor = defaultOpenColor;
+                    return;
+                case TileState.One:
+                    Text = "1";
+                    BackColor = Color.LightCoral;
+                    return;
+                case TileState.Two:
+                    Text = "2";
+                    BackColor = Color.LightSalmon;
+                    return;
+                case TileState.Three:
+                    Text = "3";
+                    BackColor = Color.LightYellow;
+                    return;
+                case TileState.Four:
+                    Text = "4";
+                    BackColor = Color.LightGreen;
+                    return;
+                case TileState.Five:
+                    Text = "5";
+                    BackColor = Color.LightCyan;
+                    return;
+                case TileState.Six:
+                    Text = "6";
+                    BackColor = Color.LightSkyBlue;
+                    return;
+                case TileState.Seven:
+                    Text = "7";
+                    BackColor = Color.Plum;
+                    return;
+                case TileState.Eight:
+                    Text = "8";
+                    BackColor = Color.LightPink;
+                    return;
+
+             
+            }
+            
+        }
+
+    }
+  
+    public partial class MineyGame : Form
+    {
+        public const int rows = 15;
+        public const int cols = 15;
+        public const int nOfMines = 30;
+        public int solverIndex;
+        public bool firstClick = true;
+        public Tile[,] tileControls = new Tile[rows, cols];
+        public Point[] offset = {  new Point(-1, -1),
+                new Point(0, -1),
+                new Point(1, -1),
+                new Point(-1, 0),
+                new Point(1, 0),
+                new Point(-1, 1),
+                new Point(0, 1),
+                new Point(1, 1)};
+
+
+        public void GenerateMines(int x, int y)
+        {
+            Random rand = new Random();
+            for (int i = 0; i < nOfMines; i++) //add bombs to game
+            {
+                //make random coordinate
+                int randomRows = rand.Next(0, rows);
+                int randomCols = rand.Next(0, cols);
+                //ensure there isn't already a bomb on coordinate
+                while (tileControls[randomRows, randomCols].State == Tile.TileState.Mine || (randomRows == x && randomCols == y))
+                {
+                    randomRows = rand.Next(0, rows);
+                    randomCols = rand.Next(0, cols);
+                }
+                tileControls[randomRows, randomCols].State = Tile.TileState.Mine; //add bomb
+                tileControls[randomRows, randomCols].ShowState();
+
+            }
+
+        }
+        public void ShowMines()
+        {
+            foreach (Tile tile in tileControls)
+            {
+                if (tile.State == Tile.TileState.Mine)
+                {
+                    tile.Text = "☠";
+                    tile.BackColor = Color.Red;
+                    
+                }
+            }
+        }
+        
+        public void CheckWin()
+        {
+            List<Tile> tileList = new List<Tile>();
+            foreach (Tile tile in tileControls)
+            {
+               if (tile.isOpen)
+                {
+                    tileList.Add(tile);
+                }
+            }
+           if (tileList.Count == (rows * cols) - nOfMines)
+            {
+                MessageBox.Show("You won!");
+            }
+        }
+
+        public void CalculateNumbers()
+        {
+            
+            int mineCounter;
+            for (int y = 0; y < cols; y++)
+            {
+                for (int x = 0; x < rows; x++)
+                {
+                    mineCounter = 0;
+                    if (tileControls[x, y].State != Tile.TileState.Mine)
+                    {
+                        for (int i = 0; i < offset.Length; i++)
+                        {
+                            try
+                            {
+                                
+                                if (tileControls[x + offset[i].X, y + offset[i].Y].State == Tile.TileState.Mine)
+                                {
+                                    mineCounter++;
+                                }
+                            }
+                            catch (IndexOutOfRangeException) { }
+                        }
+                        tileControls[x, y].State = (Tile.TileState)mineCounter;
+                        
+                    }
+
+                }
+            }
+        }
+        public void ShowOthers(int x, int y)
+        {
+            Queue<Point> queue = new Queue<Point>();
+            Dictionary<Point, bool> withoutMine = new Dictionary<Point, bool>();
+            queue.Enqueue(new Point(x, y)); //add as last item
+            withoutMine[new Point(x, y)] = true;
+            
+            while (queue.Count != 0)
+            {
+                Point currentTile = queue.Dequeue(); //get first item
+                foreach (Point dir in offset)
+                {
+                    int xx = currentTile.X + dir.X;
+                    int yy = currentTile.Y + dir.Y;
+                    if (withoutMine.ContainsKey(new Point(xx, yy)))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (tileControls[xx, yy].State != Tile.TileState.Mine)
+                        {
+                            tileControls[xx, yy].isOpen = true;
+                            tileControls[xx, yy].ShowState();
+                            withoutMine[new Point(xx, yy)] = true;
+                            if (tileControls[xx, yy].State == Tile.TileState.Zero)
+                            {
+                                queue.Enqueue(new Point(xx, yy));
+                            }
+
+                        }
+                    }
+                    catch (IndexOutOfRangeException) { }
+                }
+            }
+
+        }
+        //strategy 1:
+        public void FlagObviousMines()
+        {
+            List<Tile> numberTiles = new List<Tile>();
+            foreach (Tile tile in tileControls)
+            {
+                if (tile.isOpen && tile.BackColor != Tile.defaultOpenColor)
+                {
+                    numberTiles.Add(tile);
+                }
+            }
+            foreach (Tile numberTile in numberTiles)
+            {
+                List<Tile> adjTiles = new List<Tile>();
+                List<Tile> hiddenAdjacents = new List<Tile>();
+
+                        for (int i = 0;i < offset.Length; i++)
+                        {
+                            try
+                            {
+                                    adjTiles.Add(tileControls[numberTile.tileXCoord + offset[i].X, numberTile.tileYCoord + offset[i].Y]);
+                                
+                            } catch (IndexOutOfRangeException) { }
+
+                }
+                foreach (Tile tile in adjTiles)
+                {
+                    if (!tile.isOpen)
+                    {
+                        hiddenAdjacents.Add(tile);
+                    }
+                }
+                if (hiddenAdjacents.Count == int.Parse(numberTile.Text))
+                {
+                    foreach (Tile hiddenTile in hiddenAdjacents)
+                    {
+                        if (!hiddenTile.isFlagged)
+                        {
+                            FlagUnflag(hiddenTile);
+                        }
+                        
+                    }
+                }
+
+                
+            }
+        }
+        // strategy 2:
+        public void ObviousNumbers()
+        {
+            List<Tile> numberTiles = new List<Tile>();
+            foreach (Tile tile in tileControls)
+            {
+                if (tile.isOpen && tile.BackColor != Tile.defaultOpenColor)
+                {
+                    numberTiles.Add(tile);
+                }
+            }
+            foreach (Tile numberTile in numberTiles)
+            {
+                List<Tile> adjTiles = new List<Tile>();
+                List<Tile> flaggedAdjacents = new List<Tile>();
+
+                for (int i = 0; i < offset.Length; i++)
+                {
+                    try
+                    {
+                       
+                            adjTiles.Add(tileControls[numberTile.tileXCoord + offset[i].X, numberTile.tileYCoord + offset[i].Y]);
+                        
+                    }
+                    catch (IndexOutOfRangeException) { }
+
+                }
+                foreach (Tile tile in adjTiles)
+                {
+                    if (tile.isFlagged)
+                    {
+                        flaggedAdjacents.Add(tile);
+                    }
+                }
+                if (flaggedAdjacents.Count == int.Parse(numberTile.Text))
+                {
+                    foreach (Tile hiddenTile in adjTiles)
+                    {
+                        if (!hiddenTile.isOpen && !hiddenTile.isFlagged)
+                        {
+                            //hiddenTile.BackColor = Color.DarkMagenta;
+                            hiddenTile.isOpen = true;
+                            hiddenTile.ShowState();
+                            if (hiddenTile.State == Tile.TileState.Zero)
+                            {
+                                ShowOthers(numberTile.tileXCoord, numberTile.tileYCoord);
+                            }
+                            
+                        }
+                       
+                    }
+                }
+            }
+        }
+        private void btnAddFlag_Click(object sender, EventArgs e)
+        {
+            Tile.addFlag = true;
+        }
+        public void FlagUnflag(Tile tile)
+        {
+            tile.Text = tile.isFlagged ? "" : "⚑";
+            tile.isFlagged = !tile.isFlagged;
+        }
+        public MineyGame()
+        {
+            InitializeComponent();
+            PlayGame();
+        }
+
+        public void PlayGame()
+        {
+            //create matrix
+            for (int y = 0; y < cols; y++)
+            {
+                for (int x = 0; x < rows; x++)
+                {
+                    Tile tile = new Tile()
+                    {
+                        Size = new Size(25, 25),
+                        Location = new Point(x * (rows + 5), y * (cols + 5)),
+                        Visible = true,
+                        isOpen = false,
+                        tileYCoord = y,
+                        tileXCoord = x
+                    };
+                    this.Controls.Add(tile);
+                    tile.ShowState();
+                    tileControls[x, y] = tile;
+                    int xx = x;
+                    int yy = y;
+                    tile.Click += (sender, args) =>
+                    {
+                        solverIndex = 0;
+
+                        if (!Tile.addFlag)
+
+                        {
+                            tile.isOpen = true;
+                            if (tile.isFlagged)
+                            {
+                                /*tile.Text = "";
+                                tile.isFlagged = false;*/
+                                FlagUnflag(tile);
+                                return;
+                            }
+
+                            if (firstClick)
+                            {
+                                GenerateMines(xx, yy);
+                                CalculateNumbers();
+                                firstClick = false;
+                            }
+                          
+                            if (tile.State == Tile.TileState.Mine)
+                                {
+                                  ShowMines();
+                                  return;
+                                 }
+
+                            tileControls[xx, yy].ShowState();
+                            if (tile.State == Tile.TileState.Zero)
+                            {
+                                ShowOthers(xx, yy);
+                            }
+                            CheckWin();
+                          
+                        }
+                        else if (!tile.isOpen)
+                        {
+                            FlagUnflag(tile);
+                            Tile.addFlag = false;
+                            //return;
+
+                        }
+                        //tile.ChangeState();
+                       
+                    };
+                }
+            }
+        }
+
+        private void btnSolve_Click(object sender, EventArgs e)
+        {
+            CheckWin();
+            switch (solverIndex)
+            {
+                case 0:
+                    foreach (Tile tile in tileControls)
+                    {
+                        tile.isFlagged = false;
+                    }
+                    FlagObviousMines();
+                    solverIndex++;
+                    return;
+                case 1:
+                    ObviousNumbers();
+                    solverIndex = 0;
+                    return;
+            }
+           
+        }
+    }
+}
